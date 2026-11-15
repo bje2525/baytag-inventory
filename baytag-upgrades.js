@@ -177,6 +177,12 @@
     .itemactions{flex-wrap:wrap}
     button,.filebtn{min-height:44px}
     .baytag-photo-tools{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+    .baytag-photo-tools-panel{background:#30251a;border:1px solid #a86a31;border-radius:12px;padding:12px;margin:12px 0}
+    .baytag-photo-tools-panel h3{font-size:16px;margin:0 0 8px;color:#ffb677}
+    .baytag-photo-tools button{flex:1 1 180px}
+    .baytag-drawing #bearPreview{cursor:crosshair;touch-action:none}
+    .baytag-drawing #bearOverlays{pointer-events:none}
+    .baytag-drawing{outline:3px solid #64dbf3;outline-offset:3px}
     .baytag-row-tools{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
     .baytag-review-thumbnail{display:block;max-width:220px;max-height:130px;object-fit:contain;border:1px solid #805b36;border-radius:9px;margin-top:10px}
     .baytag-draw-box{position:absolute;border:3px dashed #61c5fb;background:#61c5fb20;pointer-events:none;border-radius:5px}
@@ -265,11 +271,19 @@
   if(typeof oldShowBearPhoto==='function'){
     window.showBearPhoto=function(i){const value=oldShowBearPhoto(i);redrawManualBoxes();return value;};
   }
+  function finishDrawMode(){
+    stage?.classList.remove('baytag-drawing');
+    if(stage) stage.style.touchAction='';
+    if(overlay) overlay.style.pointerEvents='';
+  }
   function selectDrawRow(row){
     if(typeof selectedPhotos==='undefined'||!selectedPhotos.bear?.length){alert('Take or upload a BEAR photo first.');return;}
     drawingRow=row;
     row.dataset.photoIndex=String(activePhotoIndex());
-    byId('bearScanStatus').textContent='Experimental outline: drag a rectangle around ONE tag in the displayed photo. Blue boxes are manual, orange boxes are OCR estimates.';
+    // Disable overlay hit targets and touch scrolling while drawing, especially on iPhone Safari.
+    if(stage){stage.classList.add('baytag-drawing');stage.style.touchAction='none';}
+    if(overlay)overlay.style.pointerEvents='none';
+    byId('bearScanStatus').textContent='Draw mode ON: drag one blue rectangle around ONE tag. After drawing, scroll to its review row and enter the SKU and quantity. Blue boxes are manual, orange boxes are OCR estimates.';
     stage?.scrollIntoView({block:'center',behavior:'auto'});
   }
   function coords(event){
@@ -306,9 +320,9 @@
         addRowPreview(drawingRow);
         byId('bearScanStatus').textContent='Manual blue outline set. Review this tag’s SKU and quantity before saving.';
       }else byId('bearScanStatus').textContent='Outline too small. Drag across the whole tag to try again.';
-      drawingRow=null;
+      drawingRow=null;finishDrawMode();
     });
-    stage.addEventListener('pointercancel',()=>{drawingStart=null;drawingPreview?.remove();drawingPreview=null;drawingRow=null;});
+    stage.addEventListener('pointercancel',()=>{drawingStart=null;drawingPreview?.remove();drawingPreview=null;drawingRow=null;finishDrawMode();});
   }
 
   let thumbnailSerial=0;
@@ -349,13 +363,31 @@
       return result;
     };
   }
+  // Keep photo review and manual outlines visible BEFORE OCR or a review row is created.
+  const photoToolsPanel=textNode('section','','baytag-photo-tools-panel');
+  photoToolsPanel.id='baytagPhotoTools';
+  photoToolsPanel.append(textNode('h3','Photo review & manual outlines'));
   const photoTools=textNode('div','','baytag-photo-tools');
   const viewFull=textNode('button','Review full photo');viewFull.type='button';
   viewFull.onclick=()=>openZoom(activePhotoIndex());
-  const reviewLabel=textNode('p','Orange rectangles estimate OCR text areas; blue outlines are manually drawn. They do not verify tag boundaries.','hint');
-  photoTools.append(viewFull,reviewLabel);
+  const drawNew=textNode('button','Draw outline for a new tag');drawNew.type='button';
+  drawNew.onclick=()=>{
+    if(typeof selectedPhotos==='undefined'||!selectedPhotos.bear?.length){
+      byId('bearScanStatus').textContent='Choose or take a BEAR photo first, then tap Draw outline for a new tag.';
+      return;
+    }
+    const index=activePhotoIndex();
+    window.showBearPhoto?.(index);
+    window.makeBearRow({photoIndex:index});
+    const row=byId('bearRows')?.lastElementChild;
+    if(row)selectDrawRow(row);
+  };
+  photoTools.append(viewFull,drawNew);
+  photoToolsPanel.append(photoTools);
+  const reviewLabel=textNode('p','First take or upload a BEAR photo. Review the entire image, or tap Draw outline for a new tag and drag a blue rectangle around a tag. This creates its own editable review row. Orange OCR rectangles are only estimates.','hint');
+  photoToolsPanel.append(reviewLabel);
   const scanButton=byId('scanBear');
-  if(scanButton)scanButton.before(photoTools);
+  if(scanButton)scanButton.before(photoToolsPanel);
 
   function flattenOcrLines(data) {
     const entries=[];const seen=new Set();
@@ -482,7 +514,7 @@
   window.scanPhoto=improvedScan;
   // Distinguish checked developer functionality from unverified device accuracy.
   const versionFooter = document.querySelector('footer');
-  if (versionFooter) versionFooter.textContent = 'BayTag v2.1 RC1 · Development / iPhone testing · Local-only inventory · Not affiliated with The Home Depot';
+  if (versionFooter) versionFooter.textContent = 'BayTag v2.1 RC2 · Development / iPhone testing · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
   if (localPill) localPill.textContent = 'LOCAL · TEST';
   const historyView = byId('historyView');
@@ -512,5 +544,5 @@
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
-  window.BayTagReleaseCandidate={version:'2.1.0-rc.1',featureSet:['status','history','multiple-tag-review','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+  window.BayTagReleaseCandidate={version:'2.1.0-rc.2',featureSet:['status','history','multiple-tag-review','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();
