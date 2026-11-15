@@ -1,2 +1,1 @@
-BayTag Inventory iPhone PWA v1.7
-Adds duplicate detection for single and multi-tag saves. Strong warning for same bay + Tag ID; possible warning for same bay + SKU when either Tag ID is absent. User may skip or save flagged entries. Back up JSON before updating. Upload all files to GitHub Pages repository root.
+BayTag iPhone PWA v1.9: camera or manual photo upload for yellow bay and white BEAR tags. BEAR gallery supports multiple photos. Replace repository files, backup inventory first. OCR requires network on first load.
