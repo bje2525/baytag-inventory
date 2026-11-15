@@ -1,1 +1,2 @@
-BayTag iPhone PWA v1.6 — Multiple BEAR tags per photo. Back up JSON before updating. Upload the contents of this folder to the root of your GitHub Pages repository. OCR guesses are reviewed as separate rows, each saved as its own record. Automatic multi-tag detection is best effort; add missed tags manually. No Home Depot automatic lookup service is included.
+BayTag Inventory iPhone PWA v1.7
+Adds duplicate detection for single and multi-tag saves. Strong warning for same bay + Tag ID; possible warning for same bay + SKU when either Tag ID is absent. User may skip or save flagged entries. Back up JSON before updating. Upload all files to GitHub Pages repository root.
