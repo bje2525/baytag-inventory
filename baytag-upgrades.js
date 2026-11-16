@@ -720,9 +720,9 @@
 
   // Distinguish checked developer functionality from unverified device accuracy.
   const versionFooter = document.querySelector('footer');
-  if (versionFooter) versionFooter.textContent = 'BayTag v2.1.0 · Three-SKU tag support · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0-dev.1 · DEVELOPMENT · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
-  if (localPill) localPill.textContent = 'LOCAL';
+if (localPill) localPill.textContent = 'LOCAL · TEST';
   const historyView = byId('historyView');
   if(historyView){
     const releasePanel=textNode('section','','panel');
@@ -750,5 +750,5 @@
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
-  window.BayTagReleaseCandidate={version:'2.1.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'2.2.0-dev.1',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();
