@@ -436,8 +436,8 @@
       for(const match of line.matchAll(pattern)){
         const sku=match[1]+'-'+match[2];
         // Quantity immediately following SKU on the SAME line is a per-SKU value.
-        const remaining=line.slice((match.index||0)+match[0].length);
-        const quantity=remaining.match(/(?:^|\s)(\d{1,5})(?=\s|$)/)?.[1]||'';
+        const remaining=line.slice((match.index||0)+match[0].length).split(/\d{3}\s*[-–—]\s*\d{3}/)[0];
+        const quantity=remaining.match(/^\s*(?:QTY\s*[:#]?\s*)?(\d{1,5})(?=\s|$)/i)?.[1]||'';
         output.push({sku,qty:quantity,tagDate:date});
       }
     }
@@ -526,6 +526,7 @@
     const files=(typeof selectedPhotos!=='undefined'&&selectedPhotos[kind])?[...selectedPhotos[kind]]:[];
     const status=byId(isBay?'bayScanStatus':'bearScanStatus'),button=byId(isBay?'scanBay':'scanBear');
     if(!files.length){if(status)status.textContent='Take or upload a photo first.';return;}
+    if(button.disabled)return;
     button.disabled=true;
     let worker=null,created=0,failed=false;
     try{
@@ -550,9 +551,9 @@
           if(!confirm('Replace '+oldAuto.length+' previous OCR review rows? Manually added rows will be kept.')){
             status.textContent='Scan canceled. Previous review rows were kept.';return;
           }
-          for(const r of oldAuto)r.remove();
+
         }
-        scannedPhotoRegions=[];
+        const pending=[];
         for(let i=0;i<files.length;i++){
           if(selectedPhotos.bear[i]!==files[i])throw Error('Photos changed during scanning. Review the new selection and retry.');
           status.textContent='Scanning photo '+(i+1)+' of '+files.length+'…';
@@ -560,18 +561,20 @@
           const dimensions=await imageDimensionsFor(files[i]);
           const regions=estimateRegions(result.data,dimensions);
           const guesses=regions.length?regions.map(r=>r.data):parseTextOnlySkuRows(result.data.text||'');
-          scannedPhotoRegions[i]=regions;
-          for(let j=0;j<guesses.length;j++){
-            window.makeBearRow({...guesses[j],photoIndex:i});
+          pending.push({regions,guesses});
+        }
+        if(files.length!==selectedPhotos.bear.length||files.some((file,i)=>file!==selectedPhotos.bear[i]))throw Error('Photos changed during scanning. Review the new selection and retry.');
+        // Commit temporary OCR results only after every photo has succeeded.
+        for(const row of oldAuto)row.remove();
+        scannedPhotoRegions=pending.map(photo=>photo.regions);
+        for(const [i,{regions,guesses}] of pending.entries()){
+          for(const [j,guess] of guesses.entries()){
+            window.makeBearRow({...guess,photoIndex:i});
             const row=byId('bearRows').lastElementChild;
-            row.dataset.regionIndex=String(j);
-            row.dataset.baytagAuto='yes';
-            addRowPreview(row);
-            created++;
+            row.dataset.regionIndex=String(j);row.dataset.baytagAuto='yes';
+            addRowPreview(row);created++;
           }
-          if(i===activePhotoIndex()){
-            renderTagOutlines(regions);redrawManualBoxes();
-          }
+          if(i===activePhotoIndex()){renderTagOutlines(regions);redrawManualBoxes();}
         }
         if(!created){
           status.textContent='No clearly formatted SKUs detected. Add each missing tag manually; existing manual rows were kept.';
@@ -720,14 +723,14 @@
 
   // Distinguish checked developer functionality from unverified device accuracy.
   const versionFooter = document.querySelector('footer');
-if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0-dev.1 · DEVELOPMENT · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0-dev.2 · DEVELOPMENT · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
 if (localPill) localPill.textContent = 'LOCAL · TEST';
   const historyView = byId('historyView');
   if(historyView){
     const releasePanel=textNode('section','','panel');
     releasePanel.append(textNode('h2','Release safety and iPhone verification'));
-    releasePanel.append(textNode('p','DEVELOPMENT ACCEPTANCE: iPhone checks passed for multi-SKU scanning, yellow location tags, inventory persistence, history, backups and offline use. PRODUCTION VERIFICATION: after publishing, confirm the live site and back up existing inventory.','hint'));
+    releasePanel.append(textNode('p','Development build: automated regression tests cover scanner and inventory behavior. Real iPhone camera, OCR accuracy, and offline installation still require device verification. Back up existing inventory before publishing.','hint'));
     releasePanel.append(textNode('p','EXPERIMENTAL: automatic orange outlines estimate OCR text regions, not physical tag borders. Blue boxes are manual and temporary. Review all detected numbers before saving.','hint'));
     const items=[
       'Back up real inventory JSON before changing the published app',
@@ -750,5 +753,5 @@ if (localPill) localPill.textContent = 'LOCAL · TEST';
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
- window.BayTagReleaseCandidate={version:'2.2.0-dev.1',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'2.2.0-dev.2',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();
