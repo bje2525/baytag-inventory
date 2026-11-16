@@ -384,7 +384,7 @@
   };
   photoTools.append(viewFull,drawNew);
   photoToolsPanel.append(photoTools);
-  const reviewLabel=textNode('p','First take or upload a BEAR photo. Review the entire image, or tap Draw outline for a new tag and drag a blue rectangle around a tag. This creates its own editable review row. Orange OCR rectangles are only estimates.','hint');
+  const reviewLabel=textNode('p','One printed BEAR tag can contain up to 3 SKU lines. Each SKU has its own quantity. Upload a photo, then review OCR suggestions or draw a blue outline manually. Orange OCR rectangles are estimates.','hint');
   photoToolsPanel.append(reviewLabel);
   const scanButton=byId('scanBear');
   if(scanButton)scanButton.before(photoToolsPanel);
@@ -418,37 +418,109 @@
       img.onerror=()=>{URL.revokeObjectURL(url);resolve(null);};img.src=url;
     });
   }
+
+  function parsePrintedDate(text){
+    const m=String(text||'').match(/\b(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{2}|\d{4})\b/);
+    if(!m)return '';
+    const month=Number(m[1]),day=Number(m[2]),year=Number(m[3].length===2?'20'+m[3]:m[3]);
+    const test=new Date(Date.UTC(year,month-1,day));
+    if(test.getUTCFullYear()!==year||test.getUTCMonth()!==month-1||test.getUTCDate()!==day)return '';
+    return year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  }
+  function parseTextOnlySkuRows(text){
+    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),date=parsePrintedDate(text);
+    const output=[];
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i];
+      const pattern=/(?:^|[^\d])(\d{3})\s*[-–—]\s*(\d{3})(?!\d)/g;
+      for(const match of line.matchAll(pattern)){
+        const sku=match[1]+'-'+match[2];
+        // Quantity immediately following SKU on the SAME line is a per-SKU value.
+        const remaining=line.slice((match.index||0)+match[0].length);
+        const quantity=remaining.match(/(?:^|\s)(\d{1,5})(?=\s|$)/)?.[1]||'';
+        output.push({sku,qty:quantity,tagDate:date});
+      }
+    }
+    // On a single-SKU tag, QTY may be printed above the SKU. Do not guess a shared
+    // quantity for a tag containing two or three SKU rows.
+    if(output.length===1&&!output[0].qty){
+      const direct=String(text||'').match(/\bQTY\s*[:#]?\s*(\d{1,5})\b/i);
+      const reverse=String(text||'').match(/\b(\d{1,5})\s*QTY\b/i);
+      output[0].qty=direct?.[1]||reverse?.[1]||'';
+    }
+    return output;
+  }
   function estimateRegions(data,dims){
     const lines=flattenOcrLines(data);
-    const anchors=[];
-    const skuPattern=/(?:SKU\s*[:#-]?\s*)?(\d{3})\s*[-– ]\s*(\d{3})\b/i;
-    for(const line of lines){
-      const match=line.text.match(skuPattern);if(!match)continue;
-      const b=line.bbox;
-      anchors.push({sku:match[1]+'-'+match[2],bbox:b,cx:(b.x0+b.x1)/2,cy:(b.y0+b.y1)/2});
-    }
-    if(!anchors.length)return [];
     const width=dims?.w||Number(data.imageSize?.width)||Math.max(1,...lines.map(x=>x.bbox.x1));
     const height=dims?.h||Number(data.imageSize?.height)||Math.max(1,...lines.map(x=>x.bbox.y1));
-    const groups=anchors.map(a=>[a.bbox]);
-    const groupedText=anchors.map(a=>[a.sku]);
+    const date=parsePrintedDate(data.text||lines.map(l=>l.text).join('\n'));
+    const anchors=[];
+    const skuPattern=/(?:^|[^\d])(\d{3})\s*[-–—]\s*(\d{3})(?!\d)/g;
     for(const line of lines){
-      const midX=(line.bbox.x0+line.bbox.x1)/2,midY=(line.bbox.y0+line.bbox.y1)/2;
-      let idx=0,shortest=Infinity;
-      anchors.forEach((a,i)=>{
-        const distance=Math.hypot((midX-a.cx), (midY-a.cy));
-        if(distance<shortest){shortest=distance;idx=i;}
-      });
-      if(shortest<=Math.max(width,height)*.38){groups[idx].push(line.bbox);groupedText[idx].push(line.text);}
+      for(const m of String(line.text).matchAll(skuPattern)){
+        const b=line.bbox;
+        anchors.push({sku:m[1]+'-'+m[2],bbox:b,cx:(b.x0+b.x1)/2,cy:(b.y0+b.y1)/2,h:b.y1-b.y0});
+      }
     }
-    return anchors.map((anchor,i)=>{
-      const boxes=groups[i];const pad=Math.max(9,Math.min(width,height)*.018);
+    if(!anchors.length)return [];
+    const quantities=[];
+    for(const line of lines){
+      const t=line.text.trim();
+      if(skuPattern.test(t)){skuPattern.lastIndex=0;
+        // Some OCR engines return "766-154 80" as one wide line.
+        const trailing=t.match(/\d{3}\s*[-–—]\s*\d{3}\s+(\d{1,5})\s*$/);
+        if(trailing){
+          const b=line.bbox;
+          quantities.push({value:trailing[1],x:b.x1-1,y:(b.y0+b.y1)/2,bbox:b,embedded:true});
+        }
+        continue;
+      }
+      skuPattern.lastIndex=0;
+      // Ignore 7-digit Tag IDs, barcode digits, dates, printed department codes.
+      const q=t.match(/^(?:QTY\s*[:#]?\s*)?(\d{1,5})(?:\s*QTY)?$/i);
+      if(!q)continue;
+      const b=line.bbox;
+      quantities.push({value:q[1],x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2,bbox:b});
+    }
+    const used=new Set();
+    const regions=anchors.map(a=>{
+      let best=-1,bestScore=Infinity;
+      for(let i=0;i<quantities.length;i++){
+        if(used.has(i))continue;
+        const q=quantities[i];
+        const dy=Math.abs(q.y-a.cy),dx=q.x-a.cx;
+        // Printed quantity is to the RIGHT of its corresponding SKU line.
+        if(dx<=0||dy>Math.max(height*.065,a.h*1.4))continue;
+        const score=dy/Math.max(1,height)*4+dx/Math.max(1,width);
+        if(score<bestScore){bestScore=score;best=i;}
+      }
+      const q=best<0?null:quantities[best];if(q)used.add(best);
+      const boxes=[a.bbox,...(q?[q.bbox]:[])];
+      const pad=Math.max(5,Math.min(width,height)*.008);
       const x0=Math.max(0,Math.min(...boxes.map(b=>b.x0))-pad),y0=Math.max(0,Math.min(...boxes.map(b=>b.y0))-pad);
       const x1=Math.min(width,Math.max(...boxes.map(b=>b.x1))+pad),y1=Math.min(height,Math.max(...boxes.map(b=>b.y1))+pad);
-      const parsed=typeof suggestBear==='function'?suggestBear(groupedText[i].join('\n')):{};
-      return {data:{...parsed,sku:anchor.sku},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
+      return {data:{sku:a.sku,qty:q?q.value:'',tagDate:date},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
     });
+    if(regions.length===1&&!regions[0].data.qty){
+      const value=parseTextOnlySkuRows(data.text||'')[0]?.qty;
+      if(value)regions[0].data.qty=value;
+      else {
+        // Another common single-tag layout: QTY sits left and quantity sits
+        // in a large box above the SKU. Never apply this to multi-SKU tags.
+        const qtyWords=lines.filter(l=>/^QTY\b/i.test(l.text.trim()));
+        if(qtyWords.length){
+          const label=qtyWords[0].bbox;
+          const candidates=quantities.filter(q=>q.x>(label.x0+label.x1)/2&&Math.abs(q.y-(label.y0+label.y1)/2)<height*.20);
+          if(candidates.length===1)regions[0].data.qty=candidates[0].value;
+        }
+      }
+    }
+    return regions;
   }
+  // For isolated tests. This parser does not upload photographs or store OCR content.
+  window.BayTagPrintedTagParser={parseTextOnlySkuRows,estimateRegions,parsePrintedDate};
+
   async function improvedScan(kind){
     const isBay=kind==='bay';
     const files=(typeof selectedPhotos!=='undefined'&&selectedPhotos[kind])?[...selectedPhotos[kind]]:[];
@@ -461,10 +533,14 @@
       await loadOcr();worker=await Tesseract.createWorker('eng',1);
       if(isBay){
         const result=await worker.recognize(files[0],{},{text:true,blocks:true});
-        const fields=Object.entries(suggestBay(result.data.text||'')).filter(([k,v])=>v&&byId(k));
+        const proposed=suggestBay(result.data.text||'');
+        const found=String(result.data.text||'').match(/\b(\d{1,2})\s*[-–—]\s*(\d{1,3})\b/);
+        const loc=found?found[1].padStart(2,'0')+'-'+found[2].padStart(3,'0'):proposed.bay;
+        const fields=[...(proposed.dept?[['dept',proposed.dept]]:[]),...(loc?[['bay',loc]]:[])];
         if(fields.length){
           if(confirm('Possible bay values:\n\n'+fields.map(([k,v])=>k+': '+v).join('\n')+'\n\nApply?')){
             for(const [k,v] of fields)byId(k).value=v;
+            showLocationFields();
           }
           status.textContent='Review bay location before saving.';
         }else status.textContent='No clear bay number found. Enter the bay manually.';
@@ -483,7 +559,7 @@
           const result=await worker.recognize(files[i],{},{text:true,blocks:true});
           const dimensions=await imageDimensionsFor(files[i]);
           const regions=estimateRegions(result.data,dimensions);
-          const guesses=regions.length?regions.map(r=>r.data):detectMultipleBear(result.data.text||'');
+          const guesses=regions.length?regions.map(r=>r.data):parseTextOnlySkuRows(result.data.text||'');
           scannedPhotoRegions[i]=regions;
           for(let j=0;j<guesses.length;j++){
             window.makeBearRow({...guesses[j],photoIndex:i});
@@ -512,9 +588,139 @@
     }
   }
   window.scanPhoto=improvedScan;
+
+  /* Location and BEAR tag rules from photographed examples (v2.1 RC3):
+     Yellow: department 29, aisle 32, bay 018. Ignore direction and barcode.
+     White: each SKU line has its OWN quantity; ignore tag ID and barcode.
+     All existing JSON inventory keys are kept for backward compatibility. */
+  const legacyBay=byId('bay');
+  const locWrapper=legacyBay?.closest('.field');
+  const deptField=byId('dept');
+  function makeLocationField(id,label,placeholder,maxLength){
+    const wrapper=textNode('div','','field');
+    const caption=document.createElement('label');caption.htmlFor=id;caption.textContent=label;
+    const input=document.createElement('input');
+    input.id=id;input.type='text';input.inputMode='numeric';input.maxLength=maxLength;
+    input.pattern='[0-9]+';input.required=true;input.placeholder=placeholder;
+    wrapper.append(caption,input);return {wrapper,input};
+  }
+  const aisleField=makeLocationField('aisleNumber','Aisle number *','32',2);
+  const bayNumberField=makeLocationField('bayNumber','Bay number *','018',3);
+  if(locWrapper){
+    legacyBay.required=false;
+    locWrapper.classList.add('hidden');
+    locWrapper.after(aisleField.wrapper,bayNumberField.wrapper);
+    const locHelp=textNode('p','Yellow location tag: Department 29 · Aisle 32 · Bay 018. Direction and barcode are not used.','hint');
+    bayNumberField.wrapper.after(locHelp);
+  }
+  for(const id of ['direction','bayBarcode','tagid']){
+    const input=byId(id);
+    input?.closest('.field')?.classList.add('hidden');
+    if(input)input.value='';
+  }
+  const tagDateLabel=document.querySelector('label[for="tagDate"]');
+  if(tagDateLabel)tagDateLabel.textContent='Date tag was created';
+  function unpackLocation(loc){
+    const match=String(loc||'').trim().match(/^(\d{1,2})\s*[-–—]\s*(\d{1,3})$/);
+    if(match)return {aisle:match[1].padStart(2,'0'),bay:match[2].padStart(3,'0')};
+    return {aisle:'',bay:''};
+  }
+  function showLocationFields(){
+    if(!legacyBay)return;
+    const {aisle,bay}=unpackLocation(legacyBay.value);
+    aisleField.input.value=aisle;bayNumberField.input.value=bay;
+  }
+  function syncLocation(){
+    const aisle=aisleField.input.value.trim(),bay=bayNumberField.input.value.trim();
+    if(!/^\d{1,2}$/.test(aisle)||!/^\d{1,3}$/.test(bay)){
+      const bad=!/^\d{1,2}$/.test(aisle)?aisleField.input:bayNumberField.input;
+      bad.setCustomValidity('Enter a numeric aisle (1–2 digits) and bay (1–3 digits).');
+      bad.reportValidity();return false;
+    }
+    aisleField.input.setCustomValidity('');bayNumberField.input.setCustomValidity('');
+    legacyBay.value=aisle.padStart(2,'0')+'-'+bay.padStart(3,'0');
+    return true;
+  }
+  for(const field of [aisleField.input,bayNumberField.input]){
+    field.addEventListener('input',()=>{field.setCustomValidity('');if(legacyBay)legacyBay.value='';});
+  }
+  const form=byId('entryForm');
+  if(form)form.addEventListener('submit',event=>{
+    if(!syncLocation()){
+      event.preventDefault();event.stopImmediatePropagation();return;
+    }
+    // No tag number / barcode / direction is collected from new entries.
+    for(const id of ['direction','bayBarcode','tagid'])if(!editing&&byId(id))byId(id).value='';
+  },true);
+  byId('saveBearRows')?.addEventListener('click',event=>{
+    if(!syncLocation()){event.preventDefault();event.stopImmediatePropagation();return;}
+  },true);
+  const beforeSwitchLocation=window.switchTab;
+  if(typeof beforeSwitchLocation==='function')window.switchTab=function(name){
+    if(name==='add' && editing)showLocationFields();
+    return beforeSwitchLocation(name);
+  };
+  const beforeClearLocation=window.clearForm;
+  if(typeof beforeClearLocation==='function')window.clearForm=function(...args){
+    const result=beforeClearLocation.apply(this,args);
+    aisleField.input.value='';bayNumberField.input.value='';
+    return result;
+  };
+  // One SKU + bay is the duplicate key. An old tag ID is never read to decide duplicates.
+  window.approveDuplicates=function(incoming,existing,ignoreId=null){
+    const norm=v=>String(v??'').trim().toUpperCase().replace(/\s+/g,'');
+    const approved=[];let skipped=0;
+    for(const item of incoming){
+      const matches=[...existing,...approved].filter(r=>r.id!==ignoreId&&norm(r.bay)===norm(item.bay)&&norm(r.sku)===norm(item.sku));
+      if(matches.length){
+        const message='POSSIBLE DUPLICATE SKU\\nBay '+item.bay+' / SKU '+item.sku+'\\nExisting quantity '+matches[0].quantity+'\\n\\nOK = save anyway; Cancel = skip this entry.';
+        if(!confirm(message.replace(/\\n/g,'\n'))){skipped++;continue;}
+      }
+      approved.push(item);
+    }
+    return {approved,skipped};
+  };
+  // Hide obsolete metadata without rewriting historical records in localStorage.
+  const beforeRenderLocation=window.render;
+  if(typeof beforeRenderLocation==='function')window.render=function(...args){
+    const result=beforeRenderLocation.apply(this,args);
+    const q=(byId('search')?.value||'').toLowerCase();
+    const visible=records.filter(r=>[r.sku,r.bay,r.department,r.description,r.brand,r.model].some(v=>String(v||'').toLowerCase().includes(q)));
+    const all=byId('items')?.querySelectorAll('.item')||[];
+    all.forEach((card,i)=>{
+      const record=visible[i];if(!record)return;
+      const muted=card.querySelectorAll('.muted');
+      for(const line of muted){
+        if(line.textContent.startsWith('Tag ID:')||line.textContent.startsWith('Direction:'))line.remove();
+        else if(line.textContent.startsWith('Bay ')){
+          const parts=unpackLocation(record.bay);
+          if(parts.aisle)line.textContent='Aisle '+parts.aisle+' · Bay '+parts.bay+' · Dept '+(record.department||'—');
+        }
+      }
+    });
+    return result;
+  };
+  byId('search') && (byId('search').oninput=()=>window.render());
+  // CSV intentionally contains only fields requested for current inventory use.
+  byId('exportBtn') && (byId('exportBtn').onclick=()=>{
+    const columns=[['department','Department'],['aisle','Aisle'],['bayNumber','Bay'],['sku','SKU'],['quantity','Quantity'],['tagDate','Date Tag Created'],['description','Description'],['brand','Brand'],['model','Model'],['status','Status'],['updatedAt','Updated At']];
+    const normalizeRecord=r=>({...r,aisle:unpackLocation(r.bay).aisle,bayNumber:unpackLocation(r.bay).bay});
+    const rows=[columns.map(c=>csvCell(c[1])).join(','),...records.map(r=>{const v=normalizeRecord(r);return columns.map(c=>csvCell(v[c[0]])).join(',')})];
+    download('baytag-inventory-'+new Date().toISOString().slice(0,10)+'.csv','\ufeff'+rows.join('\r\n'),'text/csv;charset=utf-8');
+  });
+  // New manual/OCR rows should not request or use the old Tag ID field.
+  const beforeMakeRowFields=window.makeBearRow;
+  if(typeof beforeMakeRowFields==='function')window.makeBearRow=function(data={}){
+    const result=beforeMakeRowFields({...data,tagid:''});
+    const row=byId('bearRows')?.lastElementChild;
+    const tagInput=row?.querySelector('[data-field="tagid"]');
+    if(tagInput){tagInput.value='';tagInput.closest('.field')?.classList.add('hidden');}
+    return result;
+  };
+
   // Distinguish checked developer functionality from unverified device accuracy.
   const versionFooter = document.querySelector('footer');
-  if (versionFooter) versionFooter.textContent = 'BayTag v2.1 RC2 · Development / iPhone testing · Local-only inventory · Not affiliated with The Home Depot';
+  if (versionFooter) versionFooter.textContent = 'BayTag v2.1 RC3 · Three-SKU tag support · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
   if (localPill) localPill.textContent = 'LOCAL · TEST';
   const historyView = byId('historyView');
@@ -544,5 +750,5 @@
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
-  window.BayTagReleaseCandidate={version:'2.1.0-rc.2',featureSet:['status','history','multiple-tag-review','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+  window.BayTagReleaseCandidate={version:'2.1.0-rc.3',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();
