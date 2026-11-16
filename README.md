@@ -28,3 +28,16 @@ including separate dates for tags in the same photo. Conflicting dates without
 coordinates, or equally close conflicting dates, remain blank for manual review.
 The development test workflow runs `npm ci` and `npm test` on pushes and pull
 requests targeting `baytag-v2.2` with read-only repository permissions.
+
+## v2.2.0-rc.1 Easy Mode
+
+Installed using the supplied Easy Mode release-candidate installer. The new
+presentation layer adds Location → Photos → Review guidance, quick inventory
+navigation, optional manual entry and Help without changing inventory storage.
+The scanner, date matching, backups and history remain available.
+
+Device test preview (separate browser storage; use dummy inventory):
+https://raw.githack.com/bje2525/baytag-inventory/baytag-v2.2/index.html?v=2.2.0-rc.1
+
+This is a release candidate on the development branch, not a production release.
+Real iPhone camera and OCR acceptance testing is still required.
