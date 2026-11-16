@@ -1,5 +1,5 @@
-/* BayTag v2.1 RC3 service worker. Same-origin static assets only. */
-const CACHE = 'baytag-pwa-v2-1-rc3';
+/* BayTag v2.1.0 stable service worker. Same-origin static assets only. */
+const CACHE = 'baytag-pwa-v2-1-0';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './update.js', './baytag-upgrades.js', './version.json'

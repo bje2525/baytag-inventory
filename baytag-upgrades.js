@@ -1,4 +1,4 @@
-/* BayTag optional development add-on v2.1. No network calls; does not migrate inventory. */
+/* BayTag v2.1.0 stable feature add-on. No network calls; no inventory migration. */
 (() => {
   'use strict';
   if (window.BayTagUpgradesLoaded) return;
@@ -589,8 +589,8 @@
   }
   window.scanPhoto=improvedScan;
 
-  /* Location and BEAR tag rules from photographed examples (v2.1 RC3):
-     Yellow: department 29, aisle 32, bay 018. Ignore direction and barcode.
+  /* Location and BEAR tag rules from photographed examples (v2.1.0):
+     Yellow: parse department, aisle and bay. Ignore direction and barcode.
      White: each SKU line has its OWN quantity; ignore tag ID and barcode.
      All existing JSON inventory keys are kept for backward compatibility. */
   const legacyBay=byId('bay');
@@ -720,14 +720,14 @@
 
   // Distinguish checked developer functionality from unverified device accuracy.
   const versionFooter = document.querySelector('footer');
-  if (versionFooter) versionFooter.textContent = 'BayTag v2.1 RC3 · Three-SKU tag support · Local-only inventory · Not affiliated with The Home Depot';
+  if (versionFooter) versionFooter.textContent = 'BayTag v2.1.0 · Three-SKU tag support · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
-  if (localPill) localPill.textContent = 'LOCAL · TEST';
+  if (localPill) localPill.textContent = 'LOCAL';
   const historyView = byId('historyView');
   if(historyView){
     const releasePanel=textNode('section','','panel');
     releasePanel.append(textNode('h2','Release safety and iPhone verification'));
-    releasePanel.append(textNode('p','AUTOMATED CHECKS: JavaScript syntax, sample two-tag OCR, status persistence, history and photo review. DEVICE TEST REQUIRED: actual camera, BEAR labels, iPhone Safari storage and airplane-mode behavior.','hint'));
+    releasePanel.append(textNode('p','DEVELOPMENT ACCEPTANCE: iPhone checks passed for multi-SKU scanning, yellow location tags, inventory persistence, history, backups and offline use. PRODUCTION VERIFICATION: after publishing, confirm the live site and back up existing inventory.','hint'));
     releasePanel.append(textNode('p','EXPERIMENTAL: automatic orange outlines estimate OCR text regions, not physical tag borders. Blue boxes are manual and temporary. Review all detected numbers before saving.','hint'));
     const items=[
       'Back up real inventory JSON before changing the published app',
@@ -750,5 +750,5 @@
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
-  window.BayTagReleaseCandidate={version:'2.1.0-rc.3',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+  window.BayTagReleaseCandidate={version:'2.1.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();
