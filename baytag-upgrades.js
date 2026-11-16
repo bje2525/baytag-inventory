@@ -427,8 +427,14 @@
     if(test.getUTCFullYear()!==year||test.getUTCMonth()!==month-1||test.getUTCDate()!==day)return '';
     return year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
   }
+  function uniquePrintedDate(text){
+    const dates=[...String(text||'').matchAll(/\b\d{1,2}\s*[/.-]\s*\d{1,2}\s*[/.-]\s*(?:\d{4}|\d{2})\b/g)]
+      .map(match=>parsePrintedDate(match[0])).filter(Boolean);
+    const unique=[...new Set(dates)];
+    return unique.length===1?unique[0]:'';
+  }
   function parseTextOnlySkuRows(text){
-    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),date=parsePrintedDate(text);
+    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),date=uniquePrintedDate(text);
     const output=[];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
@@ -454,7 +460,19 @@
     const lines=flattenOcrLines(data);
     const width=dims?.w||Number(data.imageSize?.width)||Math.max(1,...lines.map(x=>x.bbox.x1));
     const height=dims?.h||Number(data.imageSize?.height)||Math.max(1,...lines.map(x=>x.bbox.y1));
-    const date=parsePrintedDate(data.text||lines.map(l=>l.text).join('\n'));
+    const fallbackDate=uniquePrintedDate(data.text||lines.map(l=>l.text).join('\n'));
+    const dateLines=lines.map(line=>({date:uniquePrintedDate(line.text),bbox:line.bbox}))
+      .filter(line=>line.date);
+    // Associate each SKU with a local printed date, never the first date in the photo.
+    // Equal-distance conflicting dates stay blank for manual review.
+    const dateFor=anchor=>{
+      const ranked=dateLines.map(line=>({date:line.date,distance:Math.hypot(
+        anchor.cx-(line.bbox.x0+line.bbox.x1)/2,
+        anchor.cy-(line.bbox.y0+line.bbox.y1)/2)})).sort((a,b)=>a.distance-b.distance);
+      if(!ranked.length)return fallbackDate;
+      if(ranked.some(other=>other.date!==ranked[0].date&&Math.abs(other.distance-ranked[0].distance)<1))return '';
+      return ranked[0].date;
+    };
     const anchors=[];
     const skuPattern=/(?:^|[^\d])(\d{3})\s*[-–—]\s*(\d{3})(?!\d)/g;
     for(const line of lines){
@@ -500,7 +518,7 @@
       const pad=Math.max(5,Math.min(width,height)*.008);
       const x0=Math.max(0,Math.min(...boxes.map(b=>b.x0))-pad),y0=Math.max(0,Math.min(...boxes.map(b=>b.y0))-pad);
       const x1=Math.min(width,Math.max(...boxes.map(b=>b.x1))+pad),y1=Math.min(height,Math.max(...boxes.map(b=>b.y1))+pad);
-      return {data:{sku:a.sku,qty:q?q.value:'',tagDate:date},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
+      return {data:{sku:a.sku,qty:q?q.value:'',tagDate:dateFor(a)},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
     });
     if(regions.length===1&&!regions[0].data.qty){
       const value=parseTextOnlySkuRows(data.text||'')[0]?.qty;

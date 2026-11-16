@@ -22,3 +22,9 @@ Real iPhone camera, OCR accuracy, installation and airplane-mode checks remain
 manual acceptance steps. OCR still requires network resources on first use.
 This branch is not a production deployment; do not merge into protected main
 without a separate release review.
+
+Multi-tag creation dates are associated with nearby OCR date coordinates per SKU,
+including separate dates for tags in the same photo. Conflicting dates without
+coordinates, or equally close conflicting dates, remain blank for manual review.
+The development test workflow runs `npm ci` and `npm test` on pushes and pull
+requests targeting `baytag-v2.2` with read-only repository permissions.

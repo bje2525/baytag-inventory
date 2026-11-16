@@ -76,3 +76,30 @@ test('duplicate review checks both existing inventory and the current batch',()=
  const result=w.approveDuplicates([{sku:'123-456',bay:'32-018'},{sku:'789-012',bay:'32-018'},{sku:'789-012',bay:'32-018'}],[record]);
  assert.equal(result.approved.length,1);assert.equal(result.skipped,2);assert.equal(warnings,2);w.close();
 });
+test('two photographed three-SKU tags keep their own dates and quantities',()=>{
+ const w=app(JSON.stringify([record]));
+ const line=(text,x,y,width=150)=>({text,bbox:{x0:x,y0:y,x1:x+width,y1:y+20}});
+ for(const [dx,dy] of [[500,0],[0,350]]){
+  const lines=[];
+  for(const [x,y,date,skus,quantities] of [[40,40,'10/01/2026',['123-456','234-567','345-678'],['8','0','12']],[40+dx,40+dy,'11/15/2026',['456-789','567-890','678-901'],['3','16','2']]]){
+   lines.push(line(date,x,y));
+   skus.forEach((sku,i)=>{lines.push(line(sku,x,y+50+i*35));lines.push(line(quantities[i],x+200,y+50+i*35,40));});
+  }
+  const rows=w.BayTagPrintedTagParser.estimateRegions({lines,text:lines.map(l=>l.text).join('\n')},{w:1000,h:800});
+  assert.deepEqual(JSON.parse(JSON.stringify(rows.map(r=>[r.data.tagDate,r.data.qty]))),[
+   ['2026-10-01','8'],['2026-10-01','0'],['2026-10-01','12'],
+   ['2026-11-15','3'],['2026-11-15','16'],['2026-11-15','2']]);
+ }
+ assert.deepEqual(JSON.parse(w.localStorage.getItem(key)),[record]);w.close();
+});
+test('text-only OCR leaves conflicting photograph dates for manual review',()=>{
+ const w=app();const rows=w.BayTagPrintedTagParser.parseTextOnlySkuRows('10/01/2026\n123-456 8\n11/15/2026\n789-012 3');
+ assert.ok(rows.every(row=>row.tagDate===''));w.close();
+});
+test('date association preserves single-date tags and leaves equidistant conflicts blank',()=>{
+ const w=app(),parser=w.BayTagPrintedTagParser;
+ const line=(text,x,y)=>({text,bbox:{x0:x,y0:y,x1:x+100,y1:y+20}});
+ assert.equal(parser.parseTextOnlySkuRows('Created 10/01/2026\n123-456 8')[0].tagDate,'2026-10-01');
+ const rows=parser.estimateRegions({lines:[line('10/01/2026',0,0),line('11/15/2026',200,0),line('123-456',100,100)]},{w:400,h:300});
+ assert.equal(rows[0].data.tagDate,'');w.close();
+});
