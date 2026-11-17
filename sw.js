@@ -1,8 +1,8 @@
-/* BayTag v2.3.0 stable service worker. Same-origin static assets only. */
-const CACHE = 'baytag-pwa-v2-3-0-stable';
+/* BayTag v2.4.0 stable service worker. Same-origin static assets only. */
+const CACHE = 'baytag-pwa-v2-4-0-stable';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
-  './update.js', './baytag-upgrades.js', './baytag-easy-mode.js', './version.json'
+  './update.js', './baytag-upgrades.js', './baytag-easy-mode.js', './baytag-inventory-tools.js', './version.json'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
