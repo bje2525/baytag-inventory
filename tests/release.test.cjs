@@ -6,15 +6,15 @@ test('stable version is consistent in every release metadata file',()=>{
   const v=JSON.parse(read('version.json')),p=JSON.parse(read('package.json')),l=JSON.parse(read('package-lock.json'));
   assert.equal(v.version,'3.0.1');assert.equal(v.releaseStatus,'stable');
   assert.equal(p.version,v.version);assert.equal(l.version,v.version);assert.equal(l.packages[''].version,v.version);
-  assert.match(read('update.js'),/const BAYTAG_VERSION = '3\.0\.0';/);
+  assert.match(read('update.js'),/const BAYTAG_VERSION = '3\.0\.1';/);
   assert.match(read('sw.js'),/const CACHE = 'baytag-pwa-v3-0-1-stable';/);
 });
 test('release labels are stable while inventory key and Easy Mode remain compatible',()=>{
   const main=read('index.html'),upgrade=read('baytag-upgrades.js'),sw=read('sw.js');
   assert.match(main,/baytag-inventory-v1/);assert.match(main,/baytag-easy-mode\.js/);assert.match(main,/baytag-inventory-tools\.js/); assert.match(main,/baytag-capture\.js/);
   assert.match(sw,/\.\/baytag-easy-mode\.js/);assert.match(sw,/\.\/baytag-inventory-tools\.js/); assert.match(sw,/\.\/baytag-capture\.js/);
-  assert.match(upgrade,/BayTag Capture v3\.0\.0 · Local-only inventory/);
-  assert.match(upgrade,/window\.BayTagReleaseCandidate=\{version:'3\.0\.0'/);
+  assert.match(upgrade,/BayTag Capture v3\.0\.1 · Local-only inventory/);
+  assert.match(upgrade,/window\.BayTagReleaseCandidate=\{version:'3\.0\.1'/);
   assert.doesNotMatch(upgrade,/LOCAL · TEST|RELEASE TEST/);
 });
 test('GitHub CI validates future pull requests into protected main',()=>{

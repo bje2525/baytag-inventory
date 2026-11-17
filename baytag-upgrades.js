@@ -604,7 +604,7 @@
             if(parsed.department)byId('dept').value=parsed.department;
             byId('bay').value=parsed.aisle+'-'+parsed.bay;
             showLocationFields();
-            for(const id of ['dept','aisleNumber','bayNumber'])byId(id)?.dispatchEvent(new Event('input',{bubbles:true}));
+            for(const id of ['dept','aisleNumber','bayNumber'])byId(id)?.dispatchEvent(new Event('change',{bubbles:true}));
             status.textContent='Location filled from photo. Check Department, Aisle and Bay, then continue to Step 2.';
           }else status.textContent='Photo suggestions were not applied. Retake the photo or enter the location manually.';
         }else status.textContent='Could not read aisle and bay clearly. No fields changed. Retake the yellow tag photo or enter the numbers manually.';
