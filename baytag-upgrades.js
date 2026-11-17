@@ -741,7 +741,7 @@
 
   // Stable release label. OCR results still need review before saving.
   const versionFooter = document.querySelector('footer');
-if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0 · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag v2.3.0 · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
 if (localPill) localPill.textContent = 'LOCAL';
   const historyView = byId('historyView');
@@ -771,5 +771,5 @@ if (localPill) localPill.textContent = 'LOCAL';
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
- window.BayTagReleaseCandidate={version:'2.2.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'2.3.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();

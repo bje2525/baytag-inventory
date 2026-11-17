@@ -1,4 +1,4 @@
-/* BayTag Easy Mode v2.2.0 stable: presentation and guidance only.
+/* BayTag Easy Mode v2.3.0 stable: presentation and guidance only.
    Does not read, write, migrate or delete saved inventory. */
 (() => {
   'use strict';
@@ -57,6 +57,16 @@
     #inventoryView #search{font-size:18px;min-height:52px}
     #inventoryView #items .item{padding:16px}
     .easy-beginner-note{font-size:13px;line-height:1.55;color:#d6cec7;margin:6px 0 14px}
+
+    .easy-photo-picker-hidden{display:none!important}
+    .easy-photo-nav{display:flex;align-items:center;gap:8px;margin:12px 0}
+    .easy-photo-nav[hidden],.easy-review-jump[hidden]{display:none!important}
+    .easy-photo-nav button{flex:1;min-height:48px;font-size:14px;font-weight:700;padding:10px}
+    .easy-photo-counter{text-align:center;color:#f5c18e;font-weight:750;min-width:94px;font-size:13px}
+    .easy-next-step,.easy-review-jump{display:block;width:100%;min-height:50px;margin:12px 0;font-size:15px;font-weight:750}
+    .easy-next-step{background:#342a22;border-color:#c47a3e}
+    .easy-review-jump{background:#2d251d;border-color:#f47b20}
+    .easy-workflow-hint{padding:11px 12px;background:#24211e;border-left:3px solid #f47b20;border-radius:8px;margin:0 0 12px;color:#eee;font-size:14px;line-height:1.5}
     @media(max-width:380px){.easy-quick-actions{grid-template-columns:1fr}.easy-step{padding:10px 7px}.easy-step .easy-step-label{font-size:12px}}
     @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
   `;
@@ -152,6 +162,13 @@
     return item;
   });
   addView.insertBefore(progress,form);
+  const workflowHint=make('p','easy-workflow-hint');
+  workflowHint.setAttribute('role','status');
+  addView.insertBefore(workflowHint,form);
+  const continueStep=make('button','easy-next-step','Continue to Step 2 · White tag photos ↓');
+  continueStep.type='button';
+  continueStep.addEventListener('click',()=>jump(bearPanel));
+  locationPanel.append(continueStep);
 
   // Place manual single-item entry behind a clear optional disclosure. The
   // original inputs, IDs and submit button remain attached to the same form.
@@ -182,9 +199,49 @@
   const photoField = $('bearPhoto')?.closest('.field');
   if (photoField) photoField.insertBefore(photoHelp, photoField.firstChild);
 
-  const bayHelp = make('div','easy-info');
-  bayHelp.textContent = 'On the yellow tag, find the department number at the top and the aisle-bay numbers below it. You do not need the barcode or direction.';
-  locationPanel.append(bayHelp);
+  // Use buttons for multiple photos, keeping the original photoChoice wired
+  // to the OCR/photo-preview engine without displaying a redundant dropdown.
+  const photoSelect=$('photoChoice');
+  const oldPicker=photoSelect?.closest('.field');
+  if(oldPicker) oldPicker.classList.add('easy-photo-picker-hidden');
+  const photoNav=make('div','easy-photo-nav');
+  photoNav.id='easyPhotoNav';
+  photoNav.hidden=true;
+  const prevPhoto=make('button','','← Previous');
+  prevPhoto.type='button';prevPhoto.setAttribute('aria-label','Previous BEAR photo');
+  const photoCount=make('span','easy-photo-counter','');
+  photoCount.setAttribute('aria-live','polite');
+  const nextPhoto=make('button','','Next →');
+  nextPhoto.type='button';nextPhoto.setAttribute('aria-label','Next BEAR photo');
+  photoNav.append(prevPhoto,photoCount,nextPhoto);
+  const stage=$('bearStage');
+  if(stage?.parentNode)stage.parentNode.insertBefore(photoNav,stage);
+  function refreshPhotoNav(){
+    const count=photoSelect?.options.length||0;
+    const index=Math.max(0,photoSelect?.selectedIndex||0);
+    photoNav.hidden=!photoSelect||photoSelect.disabled||count<2;
+    photoCount.textContent=count?'Photo '+(index+1)+' of '+count:'';
+    prevPhoto.disabled=index<=0;
+    nextPhoto.disabled=index>=count-1;
+  }
+  function changePhoto(delta){
+    if(!photoSelect||photoSelect.disabled)return;
+    const next=photoSelect.selectedIndex+delta;
+    if(next<0||next>=photoSelect.options.length)return;
+    photoSelect.selectedIndex=next;
+    photoSelect.dispatchEvent(new Event('change',{bubbles:true}));
+    refreshPhotoNav();
+  }
+  prevPhoto.addEventListener('click',()=>changePhoto(-1));
+  nextPhoto.addEventListener('click',()=>changePhoto(1));
+  photoSelect?.addEventListener('change',refreshPhotoNav);
+  if(photoSelect)new MutationObserver(refreshPhotoNav).observe(photoSelect,{childList:true,attributes:true,attributeFilter:['disabled']});
+  const reviewJump=make('button','easy-review-jump','Review detected SKUs ↓');
+  reviewJump.type='button';
+  reviewJump.id='easyReviewJump';
+  reviewJump.hidden=true;
+  reviewJump.addEventListener('click',()=>jump($('multiBear')));
+  $('scanBear')?.after(reviewJump);
 
   const reviewPanel = $('multiBear');
   if (reviewPanel) {
@@ -229,6 +286,15 @@
       /^\d{3}-\d{3}$/.test(row.querySelector('[data-field="sku"]')?.value.trim() || '') &&
       /^\d+$/.test(row.querySelector('[data-field="qty"]')?.value.trim() || '')
     );
+    workflowHint.textContent = !locationComplete
+      ? 'Start with the yellow location tag: photograph it or type department, aisle and bay.'
+      : !photoLoaded
+      ? 'Location entered. Next, take or choose white BEAR tag photos.'
+      : !reviewComplete
+      ? 'Photo ready. Find the SKUs, then review each quantity and date.'
+      : 'All SKUs and quantities are filled in. Check the photos, then save.';
+    reviewJump.hidden=rows.length===0;
+    refreshPhotoNav();
     [locationComplete,photoLoaded,reviewComplete].forEach((done,i) => {
       stepBoxes[i].classList.toggle('is-done',done);
       stepBoxes[i].classList.toggle('is-current',!done && (i===0 || (i===1&&locationComplete) || (i===2&&photoLoaded)));
