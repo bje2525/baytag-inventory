@@ -564,7 +564,20 @@
       .map(m=>[tidy(m[1],2),tidy(m[2],3)]);
     const pairKeys=unique(pairs.map(x=>x.join('-')));
     if(pairKeys.length>1)return {ambiguous:true,department:'',aisle:'',bay:''};
-    if(pairs.length)return {ambiguous:false,department:explicitDept?.[1]||'',aisle:pairs[0][0],bay:pairs[0][1]};
+    if(pairs.length){
+      // Yellow labels sometimes print the department alone above "32-018".
+      // Only use one standalone, short number immediately above the pair.
+      let department=explicitDept?.[1]||'';
+      if(!department){
+        const lines=source.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+        const locLine=lines.findIndex(x=>x.includes(pairs[0][0]+'-'+pairs[0][1])||new RegExp('(?:^|\\D)'+Number(pairs[0][0])+'\\s*[-–—]\\s*'+Number(pairs[0][1])+'(?:\\D|$)').test(x));
+        if(locLine>0){
+          const candidates=lines.slice(Math.max(0,locLine-2),locLine).filter(x=>/^\d{1,2}$/.test(x));
+          if(candidates.length===1)department=candidates[0];
+        }
+      }
+      return {ambiguous:false,department,aisle:pairs[0][0],bay:pairs[0][1]};
+    }
     return {ambiguous:false,department:explicitDept?.[1]||'',aisle:'',bay:''};
   }
   window.BayTagLocationParser={parseYellowLocation};
