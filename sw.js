@@ -1,5 +1,5 @@
-/* BayTag Capture v3.0.0 stable service worker. Same-origin static assets only. */
-const CACHE = 'baytag-pwa-v3-0-0-stable';
+/* BayTag Capture v3.0.1 stable service worker. Same-origin static assets only. */
+const CACHE = 'baytag-pwa-v3-0-1-stable';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './update.js', './baytag-upgrades.js', './baytag-easy-mode.js', './baytag-inventory-tools.js', './baytag-capture.js', './version.json'

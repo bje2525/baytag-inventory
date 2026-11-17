@@ -539,6 +539,49 @@
   // For isolated tests. This parser does not upload photographs or store OCR content.
   window.BayTagPrintedTagParser={parseTextOnlySkuRows,estimateRegions,parsePrintedDate};
 
+  // Parse yellow tag locations conservatively. Never save or overwrite records here.
+  // Supports "29-32-018", "DEPT 29 AISLE 32 BAY 018", and "DEPT 29 / 32-018".
+  // Reject ambiguous locations instead of guessing from unrelated barcode digits.
+  function parseYellowLocation(text) {
+    const source=String(text||'').toUpperCase().replace(/\u00a0/g,' ');
+    const tidy=(raw,length)=>String(raw).padStart(length,'0');
+    const unique=values=>[...new Set(values)];
+    const triples=[...source.matchAll(/(?:^|[^\d])(\d{1,2})\s*[-–—]\s*(\d{1,2})\s*[-–—]\s*(\d{1,3})(?!\d)/g)]
+      .map(m=>[tidy(m[1],1),tidy(m[2],2),tidy(m[3],3)]);
+    const tripleKeys=unique(triples.map(x=>x.join('-')));
+    if(tripleKeys.length>1)return {ambiguous:true,department:'',aisle:'',bay:''};
+    if(triples.length){
+      const [department,aisle,bay]=triples[0];
+      return {ambiguous:false,department,aisle,bay};
+    }
+    const explicitDept=source.match(/\b(?:DEPT|DEPARTMENT)\s*[:#-]?\s*(\d{1,2})\b/);
+    const explicitAisle=source.match(/\bAISLE\s*[:#-]?\s*(\d{1,2})\b/);
+    const explicitBay=source.match(/\bBAY\s*[:#-]?\s*(\d{1,3})\b/);
+    if(explicitAisle&&explicitBay){
+      return {ambiguous:false,department:explicitDept?.[1]||'',aisle:tidy(explicitAisle[1],2),bay:tidy(explicitBay[1],3)};
+    }
+    const pairs=[...source.matchAll(/(?:^|[^\d])(\d{1,2})\s*[-–—]\s*(\d{1,3})(?!\d)/g)]
+      .map(m=>[tidy(m[1],2),tidy(m[2],3)]);
+    const pairKeys=unique(pairs.map(x=>x.join('-')));
+    if(pairKeys.length>1)return {ambiguous:true,department:'',aisle:'',bay:''};
+    if(pairs.length){
+      // Yellow labels sometimes print the department alone above "32-018".
+      // Only use one standalone, short number immediately above the pair.
+      let department=explicitDept?.[1]||'';
+      if(!department){
+        const lines=source.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+        const locLine=lines.findIndex(x=>x.includes(pairs[0][0]+'-'+pairs[0][1])||new RegExp('(?:^|\\D)'+Number(pairs[0][0])+'\\s*[-–—]\\s*'+Number(pairs[0][1])+'(?:\\D|$)').test(x));
+        if(locLine>0){
+          const candidates=lines.slice(Math.max(0,locLine-2),locLine).filter(x=>/^\d{1,2}$/.test(x));
+          if(candidates.length===1)department=candidates[0];
+        }
+      }
+      return {ambiguous:false,department,aisle:pairs[0][0],bay:pairs[0][1]};
+    }
+    return {ambiguous:false,department:explicitDept?.[1]||'',aisle:'',bay:''};
+  }
+  window.BayTagLocationParser={parseYellowLocation};
+
   async function improvedScan(kind){
     const isBay=kind==='bay';
     const files=(typeof selectedPhotos!=='undefined'&&selectedPhotos[kind])?[...selectedPhotos[kind]]:[];
@@ -552,17 +595,19 @@
       await loadOcr();worker=await Tesseract.createWorker('eng',1);
       if(isBay){
         const result=await worker.recognize(files[0],{},{text:true,blocks:true});
-        const proposed=suggestBay(result.data.text||'');
-        const found=String(result.data.text||'').match(/\b(\d{1,2})\s*[-–—]\s*(\d{1,3})\b/);
-        const loc=found?found[1].padStart(2,'0')+'-'+found[2].padStart(3,'0'):proposed.bay;
-        const fields=[...(proposed.dept?[['dept',proposed.dept]]:[]),...(loc?[['bay',loc]]:[])];
-        if(fields.length){
-          if(confirm('Possible bay values:\n\n'+fields.map(([k,v])=>k+': '+v).join('\n')+'\n\nApply?')){
-            for(const [k,v] of fields)byId(k).value=v;
+        const parsed=parseYellowLocation(result.data.text||'');
+        if(parsed.ambiguous){
+          status.textContent='More than one possible bay was found. No fields changed. Please retake the photo or enter the location manually.';
+        }else if(parsed.aisle&&parsed.bay){
+          const text='Department: '+(parsed.department||'not detected')+'\nAisle: '+parsed.aisle+'\nBay: '+parsed.bay;
+          if(confirm('Location detected from photo:\n\n'+text+'\n\nUse these values? Please verify against the yellow tag.')){
+            if(parsed.department)byId('dept').value=parsed.department;
+            byId('bay').value=parsed.aisle+'-'+parsed.bay;
             showLocationFields();
-          }
-          status.textContent='Review bay location before saving.';
-        }else status.textContent='No clear bay number found. Enter the bay manually.';
+            for(const id of ['dept','aisleNumber','bayNumber'])byId(id)?.dispatchEvent(new Event('change',{bubbles:true}));
+            status.textContent='Location filled from photo. Check Department, Aisle and Bay, then continue to Step 2.';
+          }else status.textContent='Photo suggestions were not applied. Retake the photo or enter the location manually.';
+        }else status.textContent='Could not read aisle and bay clearly. No fields changed. Retake the yellow tag photo or enter the numbers manually.';
       }else{
         const oldAuto=[...(byId('bearRows')?.children||[])].filter(r=>r.dataset.baytagAuto==='yes');
         if(oldAuto.length){
@@ -741,7 +786,7 @@
 
   // Stable release label. OCR results still need review before saving.
   const versionFooter = document.querySelector('footer');
-if (versionFooter) versionFooter.textContent = 'BayTag Capture v3.0.0 · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag Capture v3.0.1 · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
 if (localPill) localPill.textContent = 'LOCAL';
   const historyView = byId('historyView');
@@ -771,5 +816,5 @@ if (localPill) localPill.textContent = 'LOCAL';
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
- window.BayTagReleaseCandidate={version:'3.0.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist','inventory-tools','capture-ui'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'3.0.1',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist','inventory-tools','capture-ui'],storageKey:'baytag-inventory-v1'};
 })();

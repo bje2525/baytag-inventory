@@ -156,8 +156,8 @@ test('v3 offline assets, version metadata and existing storage key are consisten
   const version=JSON.parse(fs.readFileSync('version.json','utf8'));
   const sw=fs.readFileSync('sw.js','utf8');
   const main=fs.readFileSync('index.html','utf8');
-  assert.equal(version.version,'3.0.0');assert.equal(version.releaseStatus,'stable');
-  assert.match(sw,/baytag-pwa-v3-0-0-stable/);
+  assert.equal(version.version,'3.0.1');assert.equal(version.releaseStatus,'stable');
+  assert.match(sw,/baytag-pwa-v3-0-1-stable/);
   assert.match(sw,/baytag-capture\.js/);
   assert.match(main,/baytag-inventory-v1/);
   assert.match(main,/baytag-capture\.js/);

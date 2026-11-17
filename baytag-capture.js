@@ -77,6 +77,17 @@
     '.capture-step-button.is-active .capture-num{border:0;color:#fff;background:#ed6507}',
     '.capture-step-button.is-done .capture-num{background:#355943;border-color:#68a87e;color:#fff}',
     '.capture-inline-info{border-left:4px solid #ee7119;background:#2b2926;border-radius:10px;padding:13px 15px;color:#f2e8df;font-size:14px;line-height:1.5;margin:12px 0}',
+    '.capture-location-photo{margin:16px 0;background:#282522;border:1px solid #5e4a39;border-radius:15px;padding:13px 12px;grid-column:1/-1}',
+    '.capture-location-photo>label:first-child{font-size:15px;line-height:1.4;color:#fff}',
+    '.capture-location-photo .actions{display:grid;grid-template-columns:1fr;gap:10px;margin:10px 0}',
+    '.capture-location-photo .filebtn{display:flex;justify-content:center;align-items:center;min-height:61px;text-align:center;font-size:17px;font-weight:800;border-radius:13px;padding:14px}',
+    '.capture-location-photo .filebtn[for="bayPhoto"]{background:#ed6507;color:#fff;border:1px solid #fa9b4b}',
+    '.capture-location-photo .filebtn[for="bayUpload"]{background:#383a3e;color:#fff;border:1px solid #747474;font-size:15px;min-height:50px}',
+    '.capture-location-photo #bayPreview{display:block;max-width:100%;width:100%;max-height:270px;object-fit:contain;border-radius:12px;margin:10px 0}',
+    '.capture-location-photo #bayPreview.hidden{display:none!important}',
+    '.capture-location-photo #bayScanStatus{font-size:14px;line-height:1.5;color:#ffd2ad;margin:10px 0}',
+    '.capture-location-photo #scanBay{font-size:14px;font-weight:750;background:#34363a;min-height:49px;border:1px solid #777}',
+    '.capture-location-photo #scanBay.capture-rescan-hidden{display:none!important}',
     '.capture-step-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}',
     '.capture-step-actions button{flex:1;min-height:50px;font-weight:750}',
     '.capture-step-actions .cap-cta{background:#ed6507;border-color:#ed6507;color:#fff}',
@@ -125,10 +136,10 @@
   ].join('\n');
   document.head.append(css);
 
-  document.title = 'BayTag Capture v3.0';
+  document.title = 'BayTag Capture v3.0.1';
   const header = document.querySelector('body>header');
   const headline = header?.querySelector('h1');
-  if (headline) headline.textContent = '▣ BayTag Capture v3.0';
+  if (headline) headline.textContent = '▣ BayTag Capture v3.0.1';
   const strapline = header?.querySelector('small');
   if (strapline) strapline.textContent = 'Independent inventory management';
 
@@ -232,8 +243,47 @@
   }
   if (locationPanel.querySelector('h2')) locationPanel.querySelector('h2').textContent = 'Step 1 · Identify the bay';
   if (photoPanel.querySelector('h2')) photoPanel.querySelector('h2').textContent = 'Step 2 · Photograph the BEAR tags';
-  const locationNote = make('p','capture-inline-info','Scan the yellow bay tag or enter the department, aisle and bay. Confirm the numbers before continuing.');
+  const locationNote = make('p','capture-inline-info','Take a photo of the yellow location tag. BayTag will read the location and fill in the numbers for you to confirm. Or type them manually.');
   locationPanel.insertBefore(locationNote,locationPanel.querySelector('.grid')||locationPanel.firstChild);
+
+  // Make the existing on-device yellow-tag camera and OCR the FIRST action,
+  // before the manual number fields. Keep native camera/upload inputs and
+  // original scan handler; never create another inventory-saving path.
+  const yellowInput=byId('bayPhoto');
+  const yellowUpload=byId('bayUpload');
+  const yellowField=yellowInput?.closest('.field');
+  const yellowScan=byId('scanBay');
+  const yellowStatus=byId('bayScanStatus');
+  if(yellowField){
+    yellowField.classList.add('capture-location-photo');
+    locationNote.after(yellowField);
+    const title=yellowField.querySelector('label[for="bayPhoto"]');
+    if(title && !title.classList.contains('filebtn'))title.textContent='📍 Scan yellow bay location';
+    const cameraButton=yellowField.querySelector('.filebtn[for="bayPhoto"]');
+    const uploadButton=yellowField.querySelector('.filebtn[for="bayUpload"]');
+    if(cameraButton)cameraButton.textContent='📷 Scan Yellow Bay Tag';
+    if(uploadButton)uploadButton.textContent='🖼️ Choose Existing Tag Photo';
+    if(yellowScan){
+      yellowScan.textContent='↻ Read this photo again';
+      yellowScan.classList.add('capture-rescan-hidden');
+    }
+    if(yellowStatus)yellowStatus.textContent='Camera photo or existing image → automatic location reading → confirm the numbers below.';
+    for(const input of [yellowInput,yellowUpload]){
+      input?.addEventListener('change',()=>{
+        const files=[...(input.files||[])].filter(f=>f.type.startsWith('image/'));
+        if(!files.length)return;
+        yellowScan?.classList.remove('capture-rescan-hidden');
+        if(yellowStatus)yellowStatus.textContent='Reading yellow bay tag photo…';
+        // The existing file-change listener has already assigned selectedPhotos.bay.
+        // Read the file once via the original OCR engine (no automatic inventory save).
+        Promise.resolve().then(()=>window.scanPhoto('bay')).then(()=>{
+          refreshHome();refreshReview();refreshSteps('location');
+        }).catch(error=>{
+          if(yellowStatus)yellowStatus.textContent='Could not read photo: '+(error.message||String(error))+'. Enter manually or try again.';
+        });
+      });
+    }
+  }
   const oldNext=locationPanel.querySelector('.easy-next-step');
   if(oldNext){
     oldNext.textContent = 'Continue to Step 2 · Take photos →';
