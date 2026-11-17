@@ -28,6 +28,8 @@ test('multiple photos show working Previous and Next controls',()=>{
  const w=start(),d=w.document,select=d.getElementById('photoChoice'),nav=d.getElementById('easyPhotoNav');
  w.eval("selectedPhotos.bear=[{name:'a.jpg'},{name:'b.jpg'}]");
  w.eval("photoPreviewUrls=['blob:a','blob:b']");
+ // The real photo upload handler clears the initial placeholder option.
+ select.replaceChildren();
  for(let i=0;i<2;i++){const option=d.createElement('option');option.value=String(i);option.textContent='Photo '+(i+1);select.append(option)}
  select.disabled=false;select.value='0';select.dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.equal(nav.hidden,false);assert.match(nav.textContent,/Photo 1 of 2/);
