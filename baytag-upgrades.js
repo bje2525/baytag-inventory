@@ -739,16 +739,16 @@
     return result;
   };
 
-  // Distinguish checked developer functionality from unverified device accuracy.
+  // Stable release label. OCR results still need review before saving.
   const versionFooter = document.querySelector('footer');
-if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0-rc.1 · RELEASE TEST · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0 · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
-if (localPill) localPill.textContent = 'LOCAL · TEST';
+if (localPill) localPill.textContent = 'LOCAL';
   const historyView = byId('historyView');
   if(historyView){
     const releasePanel=textNode('section','','panel');
     releasePanel.append(textNode('h2','Release safety and iPhone verification'));
-    releasePanel.append(textNode('p','Development build: automated regression tests cover scanner and inventory behavior. Real iPhone camera, OCR accuracy, and offline installation still require device verification. Back up existing inventory before publishing.','hint'));
+    releasePanel.append(textNode('p','Stable release: review all scanned SKU quantities and dates before saving. Export a backup of existing inventory before updating, and confirm camera, uploads and offline inventory access after publishing.','hint'));
     releasePanel.append(textNode('p','EXPERIMENTAL: automatic orange outlines estimate OCR text regions, not physical tag borders. Blue boxes are manual and temporary. Review all detected numbers before saving.','hint'));
     const items=[
       'Back up real inventory JSON before changing the published app',
@@ -771,5 +771,5 @@ if (localPill) localPill.textContent = 'LOCAL · TEST';
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
- window.BayTagReleaseCandidate={version:'2.2.0-rc.1',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'2.2.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();

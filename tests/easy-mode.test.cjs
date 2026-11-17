@@ -50,13 +50,13 @@ test('review warns of missing quantity and avoids rewriting review rows',()=>{
 test('easy mode is cached for offline app startup',()=>{
  const sw=fs.readFileSync('sw.js','utf8');
  assert.ok(sw.includes("'./baytag-easy-mode.js'"));
- assert.ok(sw.includes('baytag-pwa-v2-2-rc1-easy'));
+ assert.ok(sw.includes('baytag-pwa-v2-2-0-stable'));
 });
-test('release label is test-only and production storage key unchanged',()=>{
+test('stable release label and inventory storage key unchanged',()=>{
  const v=JSON.parse(fs.readFileSync('version.json','utf8'));
- assert.equal(v.version,'2.2.0-rc.1');assert.equal(v.releaseStatus,'release-candidate');
- const w=setup();assert.match(w.document.querySelector('footer').textContent,/RELEASE TEST/);
- assert.match(w.document.querySelector('header .pill').textContent,/TEST/);
+ assert.equal(v.version,'2.2.0');assert.equal(v.releaseStatus,'stable');
+ const w=setup();assert.match(w.document.querySelector('footer').textContent,/BayTag v2\.2\.0/); assert.doesNotMatch(w.document.querySelector('footer').textContent,/RELEASE TEST/);
+ assert.equal(w.document.querySelector('header .pill').textContent,'LOCAL');
  w.close();
 });
 test('editing through Easy Mode opens and saves the existing record without losing metadata',async()=>{

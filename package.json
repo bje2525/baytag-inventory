@@ -1,6 +1,6 @@
 {
   "name": "baytag-inventory",
-  "version": "2.2.0-rc.1",
+  "version": "2.2.0",
   "description": "Appliance over stock",
   "main": "baytag-upgrades.js",
   "scripts": {
