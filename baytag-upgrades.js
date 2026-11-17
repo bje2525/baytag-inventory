@@ -427,8 +427,14 @@
     if(test.getUTCFullYear()!==year||test.getUTCMonth()!==month-1||test.getUTCDate()!==day)return '';
     return year+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
   }
+  function uniquePrintedDate(text){
+    const dates=[...String(text||'').matchAll(/\b\d{1,2}\s*[/.-]\s*\d{1,2}\s*[/.-]\s*(?:\d{4}|\d{2})\b/g)]
+      .map(match=>parsePrintedDate(match[0])).filter(Boolean);
+    const unique=[...new Set(dates)];
+    return unique.length===1?unique[0]:'';
+  }
   function parseTextOnlySkuRows(text){
-    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),date=parsePrintedDate(text);
+    const lines=String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),date=uniquePrintedDate(text);
     const output=[];
     for(let i=0;i<lines.length;i++){
       const line=lines[i];
@@ -436,8 +442,8 @@
       for(const match of line.matchAll(pattern)){
         const sku=match[1]+'-'+match[2];
         // Quantity immediately following SKU on the SAME line is a per-SKU value.
-        const remaining=line.slice((match.index||0)+match[0].length);
-        const quantity=remaining.match(/(?:^|\s)(\d{1,5})(?=\s|$)/)?.[1]||'';
+        const remaining=line.slice((match.index||0)+match[0].length).split(/\d{3}\s*[-–—]\s*\d{3}/)[0];
+        const quantity=remaining.match(/^\s*(?:QTY\s*[:#]?\s*)?(\d{1,5})(?=\s|$)/i)?.[1]||'';
         output.push({sku,qty:quantity,tagDate:date});
       }
     }
@@ -454,7 +460,19 @@
     const lines=flattenOcrLines(data);
     const width=dims?.w||Number(data.imageSize?.width)||Math.max(1,...lines.map(x=>x.bbox.x1));
     const height=dims?.h||Number(data.imageSize?.height)||Math.max(1,...lines.map(x=>x.bbox.y1));
-    const date=parsePrintedDate(data.text||lines.map(l=>l.text).join('\n'));
+    const fallbackDate=uniquePrintedDate(data.text||lines.map(l=>l.text).join('\n'));
+    const dateLines=lines.map(line=>({date:uniquePrintedDate(line.text),bbox:line.bbox}))
+      .filter(line=>line.date);
+    // Associate each SKU with a local printed date, never the first date in the photo.
+    // Equal-distance conflicting dates stay blank for manual review.
+    const dateFor=anchor=>{
+      const ranked=dateLines.map(line=>({date:line.date,distance:Math.hypot(
+        anchor.cx-(line.bbox.x0+line.bbox.x1)/2,
+        anchor.cy-(line.bbox.y0+line.bbox.y1)/2)})).sort((a,b)=>a.distance-b.distance);
+      if(!ranked.length)return fallbackDate;
+      if(ranked.some(other=>other.date!==ranked[0].date&&Math.abs(other.distance-ranked[0].distance)<1))return '';
+      return ranked[0].date;
+    };
     const anchors=[];
     const skuPattern=/(?:^|[^\d])(\d{3})\s*[-–—]\s*(\d{3})(?!\d)/g;
     for(const line of lines){
@@ -500,7 +518,7 @@
       const pad=Math.max(5,Math.min(width,height)*.008);
       const x0=Math.max(0,Math.min(...boxes.map(b=>b.x0))-pad),y0=Math.max(0,Math.min(...boxes.map(b=>b.y0))-pad);
       const x1=Math.min(width,Math.max(...boxes.map(b=>b.x1))+pad),y1=Math.min(height,Math.max(...boxes.map(b=>b.y1))+pad);
-      return {data:{sku:a.sku,qty:q?q.value:'',tagDate:date},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
+      return {data:{sku:a.sku,qty:q?q.value:'',tagDate:dateFor(a)},rect:{left:x0/width*100,top:y0/height*100,width:(x1-x0)/width*100,height:(y1-y0)/height*100}};
     });
     if(regions.length===1&&!regions[0].data.qty){
       const value=parseTextOnlySkuRows(data.text||'')[0]?.qty;
@@ -526,6 +544,7 @@
     const files=(typeof selectedPhotos!=='undefined'&&selectedPhotos[kind])?[...selectedPhotos[kind]]:[];
     const status=byId(isBay?'bayScanStatus':'bearScanStatus'),button=byId(isBay?'scanBay':'scanBear');
     if(!files.length){if(status)status.textContent='Take or upload a photo first.';return;}
+    if(button.disabled)return;
     button.disabled=true;
     let worker=null,created=0,failed=false;
     try{
@@ -550,9 +569,9 @@
           if(!confirm('Replace '+oldAuto.length+' previous OCR review rows? Manually added rows will be kept.')){
             status.textContent='Scan canceled. Previous review rows were kept.';return;
           }
-          for(const r of oldAuto)r.remove();
+
         }
-        scannedPhotoRegions=[];
+        const pending=[];
         for(let i=0;i<files.length;i++){
           if(selectedPhotos.bear[i]!==files[i])throw Error('Photos changed during scanning. Review the new selection and retry.');
           status.textContent='Scanning photo '+(i+1)+' of '+files.length+'…';
@@ -560,18 +579,20 @@
           const dimensions=await imageDimensionsFor(files[i]);
           const regions=estimateRegions(result.data,dimensions);
           const guesses=regions.length?regions.map(r=>r.data):parseTextOnlySkuRows(result.data.text||'');
-          scannedPhotoRegions[i]=regions;
-          for(let j=0;j<guesses.length;j++){
-            window.makeBearRow({...guesses[j],photoIndex:i});
+          pending.push({regions,guesses});
+        }
+        if(files.length!==selectedPhotos.bear.length||files.some((file,i)=>file!==selectedPhotos.bear[i]))throw Error('Photos changed during scanning. Review the new selection and retry.');
+        // Commit temporary OCR results only after every photo has succeeded.
+        for(const row of oldAuto)row.remove();
+        scannedPhotoRegions=pending.map(photo=>photo.regions);
+        for(const [i,{regions,guesses}] of pending.entries()){
+          for(const [j,guess] of guesses.entries()){
+            window.makeBearRow({...guess,photoIndex:i});
             const row=byId('bearRows').lastElementChild;
-            row.dataset.regionIndex=String(j);
-            row.dataset.baytagAuto='yes';
-            addRowPreview(row);
-            created++;
+            row.dataset.regionIndex=String(j);row.dataset.baytagAuto='yes';
+            addRowPreview(row);created++;
           }
-          if(i===activePhotoIndex()){
-            renderTagOutlines(regions);redrawManualBoxes();
-          }
+          if(i===activePhotoIndex()){renderTagOutlines(regions);redrawManualBoxes();}
         }
         if(!created){
           status.textContent='No clearly formatted SKUs detected. Add each missing tag manually; existing manual rows were kept.';
@@ -718,16 +739,16 @@
     return result;
   };
 
-  // Distinguish checked developer functionality from unverified device accuracy.
+  // Stable release label. OCR results still need review before saving.
   const versionFooter = document.querySelector('footer');
-  if (versionFooter) versionFooter.textContent = 'BayTag v2.1.0 · Three-SKU tag support · Local-only inventory · Not affiliated with The Home Depot';
+if (versionFooter) versionFooter.textContent = 'BayTag v2.2.0 · Local-only inventory · Not affiliated with The Home Depot';
   const localPill = document.querySelector('header .pill');
-  if (localPill) localPill.textContent = 'LOCAL';
+if (localPill) localPill.textContent = 'LOCAL';
   const historyView = byId('historyView');
   if(historyView){
     const releasePanel=textNode('section','','panel');
     releasePanel.append(textNode('h2','Release safety and iPhone verification'));
-    releasePanel.append(textNode('p','DEVELOPMENT ACCEPTANCE: iPhone checks passed for multi-SKU scanning, yellow location tags, inventory persistence, history, backups and offline use. PRODUCTION VERIFICATION: after publishing, confirm the live site and back up existing inventory.','hint'));
+    releasePanel.append(textNode('p','Stable release: review all scanned SKU quantities and dates before saving. Export a backup of existing inventory before updating, and confirm camera, uploads and offline inventory access after publishing.','hint'));
     releasePanel.append(textNode('p','EXPERIMENTAL: automatic orange outlines estimate OCR text regions, not physical tag borders. Blue boxes are manual and temporary. Review all detected numbers before saving.','hint'));
     const items=[
       'Back up real inventory JSON before changing the published app',
@@ -750,5 +771,5 @@
     historyView.prepend(releasePanel);
   }
   // Keep the existing inventory storage key and export format. History/checklist keys are independent.
-  window.BayTagReleaseCandidate={version:'2.1.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
+ window.BayTagReleaseCandidate={version:'2.2.0',featureSet:['status','history','multi-sku-quantities','simple-location','manual-outlines','release-checklist'],storageKey:'baytag-inventory-v1'};
 })();

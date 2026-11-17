@@ -1,7 +1,7 @@
 
 'use strict';
 
-const BAYTAG_VERSION = '2.1';
+const BAYTAG_VERSION = '2.2.0';
 
 async function checkBayTagUpdates() {
   try {
@@ -17,7 +17,7 @@ async function checkBayTagUpdates() {
     const info = await response.json();
 
     if (info.releaseStatus !== 'stable') {
-      alert('BayTag v2.1 is still in development.');
+      alert('Published BayTag version: ' + info.version + ' (development)');
       return;
     }
 
