@@ -1,4 +1,4 @@
-/* BayTag Easy Mode v2.4.0 stable: presentation and guidance only.
+/* BayTag Easy Mode v3.0.0 stable: presentation and guidance only.
    Does not read, write, migrate or delete saved inventory. */
 (() => {
   'use strict';
