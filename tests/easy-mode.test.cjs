@@ -50,12 +50,12 @@ test('review warns of missing quantity and avoids rewriting review rows',()=>{
 test('easy mode is cached for offline app startup',()=>{
  const sw=fs.readFileSync('sw.js','utf8');
  assert.ok(sw.includes("'./baytag-easy-mode.js'"));
- assert.ok(sw.includes('baytag-pwa-v2-3-0-stable'));
+ assert.ok(sw.includes('baytag-pwa-v2-4-0-stable'));
 });
 test('stable release label and inventory storage key unchanged',()=>{
  const v=JSON.parse(fs.readFileSync('version.json','utf8'));
- assert.equal(v.version,'2.3.0');assert.equal(v.releaseStatus,'stable');
- const w=setup();assert.match(w.document.querySelector('footer').textContent,/BayTag v2\.3\.0/); assert.doesNotMatch(w.document.querySelector('footer').textContent,/RELEASE TEST/);
+ assert.equal(v.version,'2.4.0');assert.equal(v.releaseStatus,'stable');
+ const w=setup();assert.match(w.document.querySelector('footer').textContent,/BayTag v2\.4\.0/); assert.doesNotMatch(w.document.querySelector('footer').textContent,/RELEASE TEST/);
  assert.equal(w.document.querySelector('header .pill').textContent,'LOCAL');
  w.close();
 });

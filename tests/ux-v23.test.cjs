@@ -47,6 +47,6 @@ test('progress and continue guidance never save inventory automatically',()=>{
  w.close();
 });
 test('v2.3 stable cache/version match',()=>{
- assert.equal(JSON.parse(fs.readFileSync('version.json','utf8')).version,'2.3.0');
- assert.match(fs.readFileSync('sw.js','utf8'),/baytag-pwa-v2-3-0-stable/);
+ assert.equal(JSON.parse(fs.readFileSync('version.json','utf8')).version,'2.4.0');
+ assert.match(fs.readFileSync('sw.js','utf8'),/baytag-pwa-v2-4-0-stable/);
 });
