@@ -1,7 +1,7 @@
 
 'use strict';
 
-const BAYTAG_VERSION = '2.4.0';
+const BAYTAG_VERSION = '3.0.0';
 
 async function checkBayTagUpdates() {
   try {

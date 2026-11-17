@@ -1,28 +1,25 @@
-# BayTag Inventory — v2.4.0 Stable
+# BayTag Capture v3.0.0 Stable
 
-BayTag is an iPhone-friendly, local-first app for yellow bay locations and white BEAR product labels. No coding knowledge or account is needed to use the app.
+BayTag Capture is an independently branded, local-first iPhone web app for capturing shelf/bay locations and white BEAR inventory tags. The orange-and-charcoal capture interface is inspired by retail workflow concepts; it is not an official Home Depot app.
 
-## All-in-one update: smart inventory controls
+## Capture-first experience
 
-- Clear inventory summary: visible item count, quantity totals, and items marked **Needs review**
-- Filter saved items by **department** and **status**, while keeping familiar SKU/location search
-- Sort by recently changed, SKU, bay, or quantity
-- One-tap **Show needs review** and **Clear filters**
-- Select several visible items and update their status together, **only after confirmation**
-- Download **matching inventory items** as a spreadsheet (CSV), or save a complete JSON backup with one tap
-- Large, mobile-friendly buttons; no extra steps in the existing yellow-location → BEAR-photo → SKU-review scan workflow
+- New Home dashboard with a current-or-recent location card, Start Bay Capture, Review Captures, Saved Inventory, and History
+- A guided three-step capture flow: **1 · Location**, **2 · Photos**, **3 · Review**
+- Large yellow-location and BEAR-tag camera/upload actions, real captured image preview and photo navigation
+- Dedicated Review Capture screen with live department/aisle/bay summary, editable detected SKU rows, quantities, dates, and the existing **Save Capture** action
+- Four-item bottom navigation: **Home**, **Capture**, **Inventory**, **History**
+- Clear one-handed orange/charcoal design, accessible buttons, safe-area padding, and no dummy data when a bay has not been selected
 
-All previous v2.3 scanner, date matching, duplicate warnings, history, editing, manual corrections and offline capabilities remain.
+## Preserved production features
 
-## Data safety
+- The exact original `baytag-inventory-v1` localStorage key and existing saved inventory records
+- Existing multi-photo OCR, multiple SKU recognition, per-tag dates, quantity correction, duplicate prompts, error recovery, manual entry, editing, status management, history, smart inventory tools, CSV and JSON backups
+- Photo previews are temporary and not permanently saved to inventory or sent to a new backend
+- No automatic migrations or automatic save of OCR suggestions
 
-- Inventory stays under the same `baytag-inventory-v1` key in iPhone browser storage. There is no data migration or automatic overwrite.
-- Batch status updates require confirmation and roll back on a failed local save.
-- Filtered downloads do not modify inventory. The full backup includes **all** inventory even if you have filters selected.
-- Photos are used for review but are not saved permanently or uploaded to a backend.
-- Never clear Safari website data or uninstall the Home Screen app to refresh. Make regular JSON backups.
-- OCR requires a connection on first download; cached app shell and saved inventory may be used offline.
+## Testing and deployment
 
-## Release and testing
+Run `npm ci && npm test` with Node.js 24. The protected-main PR must pass all scanner, inventory, data safety, and v3 UI regression tests. Verify the GitHub Pages deployment commit. On iPhone, open the existing URL, verify all saved inventory, then check Home → Capture → Review → Save and History. Export JSON backup regularly; do not clear Safari website data or uninstall the Home Screen shortcut to force an update.
 
-Run `npm ci && npm test` with Node.js 24. The stable release runs through a PR into protected `main` and must pass GitHub Actions before merging. The live Pages app is `https://bje2525.github.io/baytag-inventory/`. After merging, check deployment and existing inventory on the same original iPhone origin.
+Live URL: https://bje2525.github.io/baytag-inventory/
