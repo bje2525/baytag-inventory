@@ -1,7 +1,7 @@
 name: BayTag stable release tests
 on:
   push:
-    branches: [baytag-v3-release]
+    branches: [baytag-v3.0.1-release]
   pull_request:
     branches: [main]
 permissions:

@@ -4,10 +4,10 @@ const fs=require('node:fs');
 const read=p=>fs.readFileSync(p,'utf8');
 test('stable version is consistent in every release metadata file',()=>{
   const v=JSON.parse(read('version.json')),p=JSON.parse(read('package.json')),l=JSON.parse(read('package-lock.json'));
-  assert.equal(v.version,'3.0.0');assert.equal(v.releaseStatus,'stable');
+  assert.equal(v.version,'3.0.1');assert.equal(v.releaseStatus,'stable');
   assert.equal(p.version,v.version);assert.equal(l.version,v.version);assert.equal(l.packages[''].version,v.version);
   assert.match(read('update.js'),/const BAYTAG_VERSION = '3\.0\.0';/);
-  assert.match(read('sw.js'),/const CACHE = 'baytag-pwa-v3-0-0-stable';/);
+  assert.match(read('sw.js'),/const CACHE = 'baytag-pwa-v3-0-1-stable';/);
 });
 test('release labels are stable while inventory key and Easy Mode remain compatible',()=>{
   const main=read('index.html'),upgrade=read('baytag-upgrades.js'),sw=read('sw.js');
@@ -20,6 +20,6 @@ test('release labels are stable while inventory key and Easy Mode remain compati
 test('GitHub CI validates future pull requests into protected main',()=>{
   const yml=read('.github/workflows/tests.yml');
   assert.match(yml,/pull_request:\s*\n\s*branches: \[main\]/);
-  assert.match(yml,/baytag-v3-release/);
+  assert.match(yml,/baytag-v3.0.1-release/);
   assert.match(yml,/npm ci/);assert.match(yml,/npm test/);
 });

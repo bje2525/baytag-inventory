@@ -1,4 +1,4 @@
-# BayTag Capture v3.0.0 Stable
+# BayTag Capture v3.0.1 Stable
 
 BayTag Capture is an independently branded, local-first iPhone web app for capturing shelf/bay locations and white BEAR inventory tags. The orange-and-charcoal capture interface is inspired by retail workflow concepts; it is not an official Home Depot app.
 
@@ -23,3 +23,11 @@ BayTag Capture is an independently branded, local-first iPhone web app for captu
 Run `npm ci && npm test` with Node.js 24. The protected-main PR must pass all scanner, inventory, data safety, and v3 UI regression tests. Verify the GitHub Pages deployment commit. On iPhone, open the existing URL, verify all saved inventory, then check Home → Capture → Review → Save and History. Export JSON backup regularly; do not clear Safari website data or uninstall the Home Screen shortcut to force an update.
 
 Live URL: https://bje2525.github.io/baytag-inventory/
+
+## v3.0.1 — Step 1 photo-first bay recognition
+
+- Step 1 displays a large **Scan Yellow Bay Tag** camera control above the manual Department/Aisle/Bay fields, with a secondary photo-library upload control.
+- Selecting a photo automatically launches the existing on-device OCR reader; the original **Read this photo again** action remains available for retries.
+- Handles yellow labels such as **29-32-018**, **DEPT 29 AISLE 32 BAY 018**, and **DEPT 29 / 32-018**. Ambiguous or unreadable images do not overwrite inputs.
+- Recognized values are shown for confirmation before filling Department, Aisle and Bay; saving still requires explicit review and the existing Save Capture action.
+- Existing inventory, scanner, local storage key `baytag-inventory-v1`, backups, and Home/Capture/Review/History are preserved.
