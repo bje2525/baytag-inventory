@@ -207,9 +207,7 @@
   editorCard.append(reviewEditor);
   reviewScreen.append(editorCard);
   reviewScreen.append(make('p','capture-review-note','Verify all detected SKU numbers, quantities and dates against the physical tags. Dates that cannot be read may be left blank. Photos are temporary; saved records stay on this device.'));
-  reviewScreen.append(button('← Back to photos','','openCapture', 'captureBackToPhotos'));
-//  Correct the back button handler below to route through the real capture flow.
-  reviewScreen.querySelector('#captureBackToPhotos').onclick = () => openCapture('photos');
+  reviewScreen.append(button('← Back to photos','',() => openCapture('photos'), 'captureBackToPhotos'));
   main.append(reviewScreen);
 
   const captureHeading = make('div','capture-screen-head');
@@ -259,8 +257,7 @@
     refreshFrame();
   }
   const captureActions=make('div','capture-step-actions');
-  const backLocation=button('← Edit location','','openCapture','captureEditLocation');
-  backLocation.onclick=()=>openCapture('location');
+  const backLocation=button('← Edit location','',()=>openCapture('location'),'captureEditLocation');
   const goReview=button('Review detected SKUs →','cap-cta',openReview,'captureGoReview');
   captureActions.append(backLocation,goReview);
   photoPanel.append(captureActions);
